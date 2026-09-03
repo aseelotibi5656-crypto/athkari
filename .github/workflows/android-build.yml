@@ -1,0 +1,58 @@
+# بناء نسخة أندرويد تلقائيًا على GitHub.
+#
+# مفيد لسببين:
+#   • يتأكد أن المشروع يبني بنجاح مع كل تعديل (اختبارات + تحليل + بناء).
+#   • ينتج ملف APK جاهز للتحميل والتثبيت على أي جوال أندرويد.
+#
+# للتشغيل يدويًا: صفحة المستودع ← تبويب Actions ← اختر هذا الـ workflow
+# ← اضغط "Run workflow". ويعمل تلقائيًا مع كل رفع على الفرع main.
+
+name: بناء أندرويد
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: اختبار وبناء APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: جلب الكود
+        uses: actions/checkout@v4
+
+      - name: تجهيز Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: تجهيز Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: تنزيل الحزم
+        run: flutter pub get
+
+      - name: تحليل الكود
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: تشغيل الاختبارات
+        run: flutter test
+
+      - name: بناء APK
+        run: flutter build apk --release
+
+      - name: رفع الملف للتحميل
+        uses: actions/upload-artifact@v4
+        with:
+          name: athkari-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30

@@ -1,0 +1,26 @@
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.vscode/
+android/local.properties
+android/.gradle/
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+.DS_Store
+
+# ملفات يولّدها Flutter/Gradle أثناء البناء — لا داعي لحفظها
+android/.kotlin/
+**/GeneratedPluginRegistrant.java
+*.log

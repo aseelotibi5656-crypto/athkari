@@ -1,0 +1,75 @@
+name: athkari
+description: "أذكاري — تطبيق مجاني لمتابعة أذكار الصباح والمساء (صدقة جارية)."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # إدارة الحالة
+  flutter_riverpod: ^2.5.1
+
+  # تخزين محلي (offline-first)
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.4
+
+  # تذكيرات محلية تعمل بدون إنترنت وحتى لو التطبيق مغلق
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+
+  # أدوات
+  intl: ^0.20.3
+  package_info_plus: ^8.0.2
+  url_launcher: ^6.3.0
+
+  # Firebase (اختياري بالكامل — التطبيق يعمل بدونه)
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_messaging: ^15.1.3
+  google_sign_in: ^6.2.1
+  sign_in_with_apple: ^6.1.1
+  crypto: ^3.0.3
+
+  # إبقاء الشاشة مضاءة أثناء القراءة (اختياري من الإعدادات)
+  wakelock_plus: ^1.2.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # نصوص الأذكار مخزّنة محليًا داخل التطبيق (لا تعتمد على أي API وقت التشغيل)
+    - lib/data/datasources/local/adhkar_morning.json
+    - lib/data/datasources/local/adhkar_evening.json
+    - assets/icon/
+
+  fonts:
+    # خط الواجهة
+    - family: Almarai
+      fonts:
+        - asset: assets/fonts/Almarai-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Almarai-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Almarai-ExtraBold.ttf
+          weight: 800
+    # خط نصوص الأذكار (نسخ مريح للقراءة الطويلة)
+    - family: Amiri
+      fonts:
+        - asset: assets/fonts/Amiri-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Amiri-Bold.ttf
+          weight: 700

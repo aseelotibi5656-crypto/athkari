@@ -1,0 +1,19 @@
+# هذا الملف يتتبّع خصائص المشروع ويستخدمه Flutter. لا تعدّله يدويًا.
+version:
+  revision: "0000000000000000000000000000000000000000"
+  channel: "stable"
+
+project_type: app
+
+migration:
+  platforms:
+    - platform: root
+      create_revision: "0000000000000000000000000000000000000000"
+      base_revision: "0000000000000000000000000000000000000000"
+    - platform: android
+      create_revision: "0000000000000000000000000000000000000000"
+      base_revision: "0000000000000000000000000000000000000000"
+
+  unmanaged_files:
+    - "lib/main.dart"
+    - "ios/Runner.xcodeproj/project.pbxproj"
