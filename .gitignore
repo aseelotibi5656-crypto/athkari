@@ -24,3 +24,15 @@ ios/Flutter/flutter_export_environment.sh
 android/.kotlin/
 **/GeneratedPluginRegistrant.java
 *.log
+
+# ملفات التوقيع والمفاتيح — لا تُرفع أبدًا (Android + iOS)
+*.jks
+*.keystore
+android/key.properties
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+*.certSigningRequest
+ios/Runner/GoogleService-Info.plist
+android/app/google-services.json

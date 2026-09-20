@@ -47,10 +47,10 @@ powershell -ExecutionPolicy Bypass -File tools\setup.ps1
 ```
 
 السكربت يتحقّق من Flutter، ينزّل الحزم، ثم يشغّل التحليل والاختبارات.
-مجلد `android/` جاهز في المشروع ولا يحتاج توليدًا.
+مجلدا `android/` و`ios/` جاهزان في المشروع ولا يحتاجان توليدًا.
 
-> المنصّة المستهدفة حاليًا هي **أندرويد**. الكود كله مستقل عن المنصّة، ولتوليد
-> مجلد iOS لاحقًا: `tools\setup.ps1 -WithIos` (بناؤه يحتاج جهاز macOS).
+> بناء iOS يتم على خوادم GitHub (macOS) تلقائيًا — لا يلزم جهاز Mac.
+> انظر قسم «البناء للنشر».
 
 بدلًا من السكربت يمكنك يدويًا:
 
@@ -148,7 +148,7 @@ flutter test
    سطر `com.google.gms.google-services` في:
    - `android/settings.gradle.kts`
    - `android/app/build.gradle.kts`
-3. **iOS:** ضع `GoogleService-Info.plist` داخل `ios/Runner/` عبر Xcode.
+3. **iOS:** ضع `GoogleService-Info.plist` داخل `ios/Runner/` (الملف مستثنى من Git؛ على GitHub Actions ضعه كسرّ base64 وفكّه في خطوة قبل البناء).
 4. قواعد Firestore المقترحة (كل مستخدم يقرأ ويكتب بياناته فقط):
 
 ```
@@ -172,11 +172,28 @@ service cloud.firestore {
 ```bash
 flutter build apk --release        # أندرويد (APK)
 flutter build appbundle --release  # أندرويد (Play Store)
-flutter build ios --release        # iOS (يتطلب macOS + Xcode)
+flutter build ios --release        # iOS (على macOS فقط — أو عبر GitHub Actions)
 ```
 
-كما يوجد بناء تلقائي على GitHub في `.github/workflows/android-build.yml` ينتج
-ملف APK جاهزًا للتحميل مع كل تعديل.
+يوجد بناء تلقائي على GitHub لكلتا المنصّتين:
+
+| الملف | ماذا يفعل |
+|---|---|
+| `.github/workflows/android-build.yml` | يحلّل ويختبر ويبني APK جاهزًا للتحميل مع كل تعديل |
+| `.github/workflows/ios-build.yml` | **verify:** يبني iOS بدون توقيع ويشغّله على محاكي iPhone ويلتقط صورة الشاشة (مع كل تعديل، بلا أسرار). **release:** يبني `.ipa` موقّعًا ويرفعه إلى TestFlight عند طلبه يدويًا أو عند دفع وسم `v*` |
+
+### iOS بدون جهاز Mac
+
+كل ما يحتاج macOS يعمل على خادم GitHub. إعدادات iOS في المشروع:
+
+- Bundle ID: `com.aseelotibi.athkari` — اسم العرض: **أذكاري** — iPhone فقط، وضع رأسي
+- الإصدار ورقم البناء يأتيان من `pubspec.yaml`، ورقم البناء يزيد تلقائيًا مع كل تشغيل على GitHub
+- الأيقونات تُولَّد من `assets/icon/icon.png` عبر `dart run flutter_launcher_icons`
+- شاشة الإقلاع بلون خلفية التطبيق (فاتح/داكن تلقائيًا) في `ios/Runner/Base.lproj/LaunchScreen.storyboard`
+
+لتفعيل الرفع إلى TestFlight أضف الأسرار المذكورة في أعلى `ios-build.yml`
+(شهادة التوزيع، ملف التزويد، ومفتاح App Store Connect API) في
+Settings ← Secrets and variables ← Actions. لا تُحفظ أي شهادة أو مفتاح داخل المستودع.
 
 قبل النشر على Google Play: أنشئ مفتاح توقيع خاصًا واستبدل `signingConfig`
 المؤقّت في `android/app/build.gradle.kts` (يستخدم حاليًا مفتاح التصحيح ليعمل

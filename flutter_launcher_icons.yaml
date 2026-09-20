@@ -1,0 +1,11 @@
+# توليد أيقونات iOS من الأيقونة الأصلية.
+# Android غير مشمول عمدًا — أيقوناته موجودة ومضبوطة مسبقًا ولا نلمسها.
+#
+# لإعادة التوليد بعد تغيير الأيقونة:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: false
+  ios: true
+  image_path: "assets/icon/icon.png"
+  # iOS يرفض الأيقونات ذات قناة الألفا (شرط للنشر على App Store).
+  remove_alpha_ios: true

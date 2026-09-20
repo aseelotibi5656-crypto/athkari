@@ -1,0 +1,387 @@
+# بناء نسخة iOS على خوادم GitHub (macOS) — بدون جهاز Mac.
+#
+# وظيفتان:
+#   • verify  — تعمل دائمًا ولا تحتاج أي أسرار أو حساب Apple: تحلّل، تختبر، تبني
+#               نسخة إصدار بدون توقيع (تثبت أن المشروع نفسه قابل للبناء على iOS)،
+#               ثم تشغّل التطبيق فعليًا على محاكي iPhone وتتأكد أنه لا ينهار عند
+#               الإقلاع وتلتقط صورة للشاشة (تُرفع كملف يمكن تحميله من صفحة الـ run).
+#   • release — تبني ملف .ipa موقّعًا وترفعه إلى TestFlight. لا تعمل إلا عند طلبها
+#               يدويًا (Actions ← بناء iOS ← Run workflow ← upload=true) أو عند دفع
+#               وسم إصدار مثل v1.0.0، وتحتاج الأسرار السبعة أدناه. كل سرّ ناقص أو
+#               غير صالح يوقف الوظيفة برسالة تشرح بالضبط ما المطلوب.
+#
+# الأسرار المطلوبة للوظيفة release (Settings ← Secrets and variables ← Actions):
+#   IOS_DIST_CERT_P12_BASE64            شهادة التوزيع (.p12) مشفّرة base64
+#   IOS_DIST_CERT_PASSWORD              كلمة مرور ملف .p12
+#   IOS_PROVISIONING_PROFILE_BASE64     ملف التزويد App Store (.mobileprovision) base64
+#   APPLE_TEAM_ID                       معرّف الفريق (10 أحرف) من صفحة Membership
+#   APP_STORE_CONNECT_KEY_ID            معرّف مفتاح App Store Connect API
+#   APP_STORE_CONNECT_ISSUER_ID         Issuer ID من صفحة Integrations ← API Keys
+#   APP_STORE_CONNECT_API_KEY_P8_BASE64 محتوى ملف AuthKey_XXXX.p8 مشفّر base64
+#
+# لا تُكتب أي قيمة من هذه داخل المستودع أبدًا. كل ما تراه هنا أسماء فقط.
+
+name: بناء iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "بناء نسخة موقّعة ورفعها إلى TestFlight (يحتاج الأسرار)"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "ios/**"
+      - "lib/**"
+      - "assets/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    branches: [main]
+
+# تشغيل جديد على نفس الفرع يلغي السابق غير المكتمل — يوفّر دقائق macOS.
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUNDLE_ID: com.aseelotibi.athkari
+  SIMULATOR_DEVICE: "iPhone 16"
+
+jobs:
+  # ===========================================================================
+  verify:
+    name: تحقق وبناء بدون توقيع
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: جلب الكود
+        uses: actions/checkout@v4
+
+      - name: معلومات البيئة (للتشخيص عند الحاجة)
+        run: |
+          sw_vers
+          xcodebuild -version
+          pod --version
+          echo "المحاكيات المتاحة:"
+          xcrun simctl list devices available | grep -E "iPhone" | head -8
+
+      - name: تجهيز Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: تنزيل الحزم
+        run: flutter pub get
+
+      - name: تحليل الكود
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: تشغيل الاختبارات
+        run: flutter test
+
+      - name: بناء iOS للأجهزة (إصدار، بدون توقيع)
+        run: |
+          flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+          echo "✅ المشروع يُبنى لـ iOS بنجاح (يشمل pod install وتجميع كل الإضافات الأصلية)"
+
+      # ---- اختبار إقلاع حقيقي على محاكي iPhone ----
+      - name: بناء نسخة المحاكي
+        run: flutter build ios --simulator --debug
+
+      - name: تشغيل المحاكي
+        id: sim
+        run: |
+          # يفضّل الجهاز المحدد في SIMULATOR_DEVICE، وإلا يأخذ أحدث iPhone متاح.
+          UDID=$(xcrun simctl list devices available --json | python3 -c "
+          import sys, json
+          devs = [d for r in json.load(sys.stdin)['devices'].values() for d in r if d['name'].startswith('iPhone')]
+          if not devs:
+              sys.exit('::error::لا يوجد أي محاكي iPhone على هذا الخادم')
+          pick = next((d for d in devs if d['name'] == '$SIMULATOR_DEVICE'), None) or devs[-1]
+          print('المحاكي المختار:', pick['name'], file=sys.stderr)
+          print(pick['udid'])")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: تثبيت التطبيق وتشغيله
+        id: launch
+        run: |
+          UDID='${{ steps.sim.outputs.udid }}'
+          xcrun simctl install "$UDID" build/ios/iphonesimulator/Runner.app
+          # ناتج launch: "com.aseelotibi.athkari: 12345" — نأخذ رقم العملية لمراقبتها.
+          OUT=$(xcrun simctl launch "$UDID" "$BUNDLE_ID")
+          echo "$OUT"
+          PID=$(echo "$OUT" | awk -F': ' '{print $2}' | tr -d '[:space:]')
+          if ! [[ "$PID" =~ ^[0-9]+$ ]]; then
+            echo "::error::تعذّر تشغيل التطبيق على المحاكي — راجع الناتج أعلاه"
+            exit 1
+          fi
+          echo "pid=$PID" >> "$GITHUB_OUTPUT"
+
+      - name: التأكد أن التطبيق ما زال يعمل بعد ١٥ ثانية من الإقلاع
+        run: |
+          UDID='${{ steps.sim.outputs.udid }}'
+          PID='${{ steps.launch.outputs.pid }}'
+          sleep 15
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "✅ التطبيق يعمل على iOS ولم ينهر عند الإقلاع (PID $PID)"
+            echo "### ✅ iOS: التطبيق أقلع بنجاح على المحاكي" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::التطبيق انهار أو أُغلق خلال ١٥ ثانية من الإقلاع على المحاكي. آخر سطور سجل النظام:"
+            xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "Runner"' --style compact 2>/dev/null | tail -100 || true
+            echo "### ❌ iOS: التطبيق انهار عند الإقلاع — راجع سجل الخطوة" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: التقاط صورة الشاشة
+        if: always() && steps.sim.outputs.udid != ''
+        run: |
+          mkdir -p artifacts
+          xcrun simctl io '${{ steps.sim.outputs.udid }}' screenshot artifacts/ios-home.png || true
+
+      - name: رفع صورة الشاشة
+        if: always() && steps.sim.outputs.udid != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-screenshot
+          path: artifacts/ios-home.png
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ===========================================================================
+  release:
+    name: بناء موقّع ورفع إلى TestFlight
+    needs: verify
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.upload == true) ||
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      KEYCHAIN_NAME: athkari-ci.keychain-db
+      KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: التأكد من وجود الأسرار السبعة
+        env:
+          IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+        run: |
+          # (بلا مصفوفات ترابطية — bash الافتراضي على macOS إصدار 3.2)
+          hint() {
+            case "$1" in
+              IOS_DIST_CERT_P12_BASE64)            echo "شهادة Apple Distribution بصيغة .p12 مشفّرة base64 (على ويندوز: certutil -encode)";;
+              IOS_DIST_CERT_PASSWORD)              echo "كلمة المرور التي اخترتها عند تصدير ملف .p12";;
+              IOS_PROVISIONING_PROFILE_BASE64)     echo "ملف .mobileprovision من نوع App Store لـ $BUNDLE_ID مشفّر base64";;
+              APPLE_TEAM_ID)                       echo "developer.apple.com ← Membership ← Team ID (10 أحرف/أرقام)";;
+              APP_STORE_CONNECT_KEY_ID)            echo "App Store Connect ← Users and Access ← Integrations ← Keys ← Key ID";;
+              APP_STORE_CONNECT_ISSUER_ID)         echo "نفس الصفحة أعلاه ← Issuer ID (UUID)";;
+              APP_STORE_CONNECT_API_KEY_P8_BASE64) echo "ملف AuthKey_XXXX.p8 (يُحمَّل مرة واحدة فقط) مشفّر base64";;
+            esac
+          }
+          missing=0
+          for name in IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 \
+                      APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8_BASE64; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=سرّ ناقص::$name غير موجود. المصدر: $(hint "$name")"
+              missing=$((missing+1))
+            fi
+          done
+          if [ "$missing" -gt 0 ]; then
+            echo "### ❌ $missing سرّ ناقص — أضفها من Settings ← Secrets and variables ← Actions ثم أعد التشغيل" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          # فحص شكلي سريع يكشف أخطاء النسخ الشائعة قبل إضاعة وقت البناء.
+          [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "::error::APPLE_TEAM_ID يجب أن يكون 10 أحرف/أرقام كبيرة، الحالي: '$APPLE_TEAM_ID'"; exit 1; }
+          [[ "$APP_STORE_CONNECT_KEY_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "::error::APP_STORE_CONNECT_KEY_ID يجب أن يكون 10 أحرف/أرقام، الحالي: '$APP_STORE_CONNECT_KEY_ID'"; exit 1; }
+          [[ "$APP_STORE_CONNECT_ISSUER_ID" =~ ^[0-9a-f-]{36}$ ]] || { echo "::error::APP_STORE_CONNECT_ISSUER_ID يجب أن يكون UUID (36 حرفًا)"; exit 1; }
+          echo "✅ الأسرار السبعة موجودة وبالشكل المتوقع"
+
+      - name: جلب الكود
+        uses: actions/checkout@v4
+
+      - name: تجهيز Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: تنزيل الحزم
+        run: flutter pub get
+
+      - name: تثبيت شهادة التوزيع في سلسلة مفاتيح مؤقتة
+        env:
+          P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+        run: |
+          P12="$RUNNER_TEMP/dist.p12"
+          if ! echo -n "$P12_BASE64" | base64 --decode > "$P12" 2>/dev/null || [ ! -s "$P12" ]; then
+            echo "::error::IOS_DIST_CERT_P12_BASE64 ليس base64 صالحًا. شفّر الملف كاملًا بلا فواصل أسطر."
+            exit 1
+          fi
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          if ! security import "$P12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_NAME" 2>import.log; then
+            cat import.log
+            echo "::error::فشل استيراد الشهادة — غالبًا IOS_DIST_CERT_PASSWORD خاطئة، أو الملف ليس .p12 يحوي المفتاح الخاص."
+            exit 1
+          fi
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME" >/dev/null
+          security list-keychain -d user -s "$KEYCHAIN_NAME" login.keychain-db
+          rm -f "$P12" import.log
+
+          IDENTITIES=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME")
+          echo "$IDENTITIES"
+          if ! echo "$IDENTITIES" | grep -q "Apple Distribution"; then
+            echo "::error::الشهادة المستوردة ليست من نوع 'Apple Distribution'. للنشر على App Store أنشئ شهادة Distribution (لا Development) من developer.apple.com ← Certificates."
+            exit 1
+          fi
+          echo "✅ شهادة Apple Distribution جاهزة"
+
+      - name: تثبيت ملف التزويد والتحقق من مطابقته
+        id: profile
+        env:
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          TMP="$RUNNER_TEMP/profile.mobileprovision"
+          if ! echo -n "$PROFILE_BASE64" | base64 --decode > "$TMP" 2>/dev/null || [ ! -s "$TMP" ]; then
+            echo "::error::IOS_PROVISIONING_PROFILE_BASE64 ليس base64 صالحًا."
+            exit 1
+          fi
+          PLIST="$RUNNER_TEMP/profile.plist"
+          if ! security cms -D -i "$TMP" > "$PLIST" 2>/dev/null; then
+            echo "::error::الملف ليس .mobileprovision صالحًا (تعذّر فك توقيعه)."
+            exit 1
+          fi
+          get() { plutil -extract "$1" raw -o - "$PLIST" 2>/dev/null; }
+          UUID=$(get UUID); NAME=$(get Name); APPID=$(get 'Entitlements.application-identifier')
+          PTEAM=$(get 'TeamIdentifier.0'); EXP=$(get ExpirationDate)
+          DEVICES=$(get ProvisionedDevices 2>/dev/null | head -1 || true)
+          ALLDEV=$(get ProvisionsAllDevices 2>/dev/null || true)
+
+          echo "الاسم: $NAME"; echo "App ID: $APPID"; echo "الفريق: $PTEAM"; echo "ينتهي: $EXP"
+
+          [ "$APPID" = "$PTEAM.$BUNDLE_ID" ] || { echo "::error::ملف التزويد لتطبيق آخر ($APPID) — المطلوب $PTEAM.$BUNDLE_ID. أنشئ Profile لـ App ID = $BUNDLE_ID."; exit 1; }
+          [ "$PTEAM" = "$TEAM_ID" ] || { echo "::error::فريق ملف التزويد ($PTEAM) لا يطابق APPLE_TEAM_ID ($TEAM_ID)."; exit 1; }
+          if [ -n "$DEVICES" ] || [ "$ALLDEV" = "true" ]; then
+            echo "::error::ملف التزويد من نوع Development أو Ad Hoc/Enterprise. للرفع إلى TestFlight اختر النوع 'App Store Connect' عند إنشائه."
+            exit 1
+          fi
+          if [ "$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$EXP" +%s 2>/dev/null || echo 0)" -lt "$(date +%s)" ]; then
+            echo "::error::ملف التزويد منتهي الصلاحية ($EXP). أعد إنشاءه من developer.apple.com."
+            exit 1
+          fi
+
+          DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$DIR" && cp "$TMP" "$DIR/$UUID.mobileprovision"
+          rm -f "$TMP" "$PLIST"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "✅ ملف التزويد صالح ومطابق: $NAME"
+
+      - name: ضبط التوقيع اليدوي لهذا البناء فقط
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PROFILE_NAME: ${{ steps.profile.outputs.name }}
+        run: |
+          # يُلحَق بملف الإعدادات على الخادم فقط — لا يُحفظ في المستودع.
+          {
+            echo ""
+            echo "// --- توقيع CI (مؤقت، يُضاف على الخادم فقط) ---"
+            echo "DEVELOPMENT_TEAM=$TEAM_ID"
+            echo "CODE_SIGN_STYLE=Manual"
+            echo "CODE_SIGN_IDENTITY=Apple Distribution"
+            echo "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution"
+            echo "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME"
+          } >> ios/Flutter/Release.xcconfig
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>uploadSymbols</key><true/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key><string>$PROFILE_NAME</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+      - name: بناء ملف IPA موقّع
+        run: |
+          set -o pipefail
+          flutter build ipa --release \
+            --build-number=${{ github.run_number }} \
+            --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" 2>&1 | tee build.log
+          IPA=$(ls build/ios/ipa/*.ipa 2>/dev/null | head -1)
+          if [ -z "$IPA" ]; then
+            echo "::error::لم يُنتَج ملف .ipa. أكثر الأسباب شيوعًا: عدم تطابق الشهادة مع ملف التزويد، أو انتهاء أحدهما. ابحث في السجل أعلاه عن 'Code Signing' أو 'provisioning'."
+            grep -iE "error|code sign|provisioning" build.log | tail -20 || true
+            exit 1
+          fi
+          echo "✅ $IPA ($(du -h "$IPA" | cut -f1))"
+          echo "ipa=$IPA" >> "$GITHUB_ENV"
+
+      - name: رفع IPA كملف للتحميل
+        uses: actions/upload-artifact@v4
+        with:
+          name: athkari-ios-ipa
+          path: build/ios/ipa/*.ipa
+          retention-days: 30
+
+      - name: فحص الملف عند Apple ثم رفعه إلى TestFlight
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$HOME/private_keys"
+          KEYFILE="$HOME/private_keys/AuthKey_$KEY_ID.p8"
+          echo -n "$P8_BASE64" | base64 --decode > "$KEYFILE"
+          if ! grep -q "BEGIN PRIVATE KEY" "$KEYFILE"; then
+            echo "::error::APP_STORE_CONNECT_API_KEY_P8_BASE64 لا يفك إلى ملف .p8 صالح (يجب أن يبدأ بـ -----BEGIN PRIVATE KEY-----)."
+            rm -f "$KEYFILE"; exit 1
+          fi
+          cleanup() { rm -f "$KEYFILE"; }
+          trap cleanup EXIT
+
+          echo "▶ فحص الملف عند Apple (validate) قبل الرفع…"
+          if ! xcrun altool --validate-app --type ios --file "$ipa" --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID" 2>&1 | tee validate.log; then
+            echo "::error::رفضت Apple الملف في مرحلة الفحص. الأسباب الشائعة: رقم بناء مكرر، Bundle ID غير مسجّل في App Store Connect، أو المفتاح بلا صلاحية App Manager."
+            grep -iE "error|invalid|missing" validate.log | tail -10 || true
+            exit 1
+          fi
+
+          echo "▶ الرفع إلى App Store Connect…"
+          xcrun altool --upload-app --type ios --file "$ipa" --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+          echo "✅ رُفع بنجاح — يظهر في TestFlight بعد المعالجة (٥-٣٠ دقيقة)، ويصلك بريد من Apple"
+          {
+            echo "### ✅ رُفع إلى TestFlight"
+            echo "- الإصدار: $(grep -E '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1) — رقم البناء: ${{ github.run_number }}"
+            echo "- افتح App Store Connect ← TestFlight لإضافة المختبرين بعد انتهاء المعالجة"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: تنظيف سلسلة المفاتيح المؤقتة
+        if: always()
+        run: security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true

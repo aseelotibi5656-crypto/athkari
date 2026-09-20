@@ -1,0 +1,28 @@
+# نهايات الأسطر: الملفات التي تُقرأ على macOS/Linux (Xcode، CocoaPods، GitHub Actions)
+# يجب أن تبقى LF على كل الأنظمة — ويندوز يحفظها CRLF افتراضيًا وقد يكسر xcconfig/Podfile.
+*.pbxproj       text eol=lf
+*.xcconfig      text eol=lf
+*.plist         text eol=lf
+*.storyboard    text eol=lf
+*.xcscheme      text eol=lf
+*.xcworkspacedata text eol=lf
+*.xcsettings    text eol=lf
+*.swift         text eol=lf
+*.h             text eol=lf
+*.m             text eol=lf
+Podfile         text eol=lf
+Podfile.lock    text eol=lf
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+.gitignore      text eol=lf
+.gitattributes  text eol=lf
+
+# ملفات ثنائية — لا تُعدَّل نهايات أسطرها أبدًا
+*.png  binary
+*.jpg  binary
+*.ttf  binary
+*.otf  binary
+*.jks  binary
+*.p12  binary
+*.mobileprovision binary
