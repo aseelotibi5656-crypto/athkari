@@ -91,6 +91,36 @@ jobs:
           flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
           echo "✅ المشروع يُبنى لـ iOS بنجاح (يشمل pod install وتجميع كل الإضافات الأصلية)"
 
+      # ملف .ipa غير موقّع — للتجربة الشخصية على iPhone عبر Sideloadly أو AltStore
+      # بحساب Apple ID مجاني (صلاحية ٧ أيام). ليس للنشر: الرفع إلى TestFlight
+      # يحتاج النسخة الموقّعة من وظيفة release.
+      - name: تجهيز ملف IPA غير موقّع للتجربة الشخصية
+        run: |
+          APP="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::لم يُعثر على $APP بعد البناء"
+            exit 1
+          fi
+          # صيغة الـ IPA هي ببساطة أرشيف ZIP يحوي مجلد Payload.
+          rm -rf "$RUNNER_TEMP/ipa" && mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          mkdir -p artifacts
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/artifacts/athkari-unsigned.ipa" Payload)
+          SIZE=$(du -h artifacts/athkari-unsigned.ipa | cut -f1)
+          echo "✅ athkari-unsigned.ipa ($SIZE)"
+          {
+            echo "### 📱 ملف التجربة على iPhone جاهز"
+            echo "- \`athkari-unsigned.ipa\` ($SIZE) — نزّله من قسم Artifacts أسفل هذه الصفحة"
+            echo "- ثبّته بـ Sideloadly على ويندوز بحساب Apple ID مجاني (صلاحيته ٧ أيام)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: رفع ملف IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: athkari-unsigned-ipa
+          path: artifacts/athkari-unsigned.ipa
+          retention-days: 90
+
       # ---- اختبار إقلاع حقيقي على محاكي iPhone ----
       - name: بناء نسخة المحاكي
         run: flutter build ios --simulator --debug
