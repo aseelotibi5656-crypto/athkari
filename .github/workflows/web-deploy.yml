@@ -1,0 +1,93 @@
+# نشر نسخة الويب من أذكاري على GitHub Pages.
+#
+# الغرض: معاينة التطبيق على أي جوال بفتح رابط — خصوصًا iPhone، حيث يمكن
+# إضافته للشاشة الرئيسية فيعمل كتطبيق مستقل بأيقونته وبلا شريط عنوان.
+#
+# قيد مهم: التذكيرات (الإشعارات المحلية) لا تعمل في نسخة الويب — تحتاج
+# تطبيقًا أصليًا. أما الأذكار والعدّاد والسلسلة والتقويم فتعمل كاملة،
+# والتقدّم يُحفظ في متصفح الجهاز نفسه.
+#
+# الرابط بعد أول نشر ناجح:
+#   https://aseelotibi5656-crypto.github.io/athkari/
+
+name: نشر الويب
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "assets/**"
+      - "web/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - ".github/workflows/web-deploy.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# نشرة واحدة في كل مرة؛ لا تُلغى نشرة جارية حتى لا يبقى الموقع نصف محدَّث.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: بناء نسخة الويب
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: جلب الكود
+        uses: actions/checkout@v4
+
+      - name: تجهيز Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: تنزيل الحزم
+        run: flutter pub get
+
+      - name: تشغيل الاختبارات
+        run: flutter test
+
+      - name: بناء الويب
+        # base-href يطابق اسم المستودع لأن Pages تنشر على مسار فرعي.
+        run: |
+          flutter build web --release --base-href=/athkari/
+          echo "✅ الحجم: $(du -sh build/web | cut -f1)"
+
+      - name: تهيئة Pages
+        uses: actions/configure-pages@v5
+        with:
+          # يُفعّل GitHub Pages تلقائيًا في أول تشغيل إن لم يكن مفعّلًا.
+          enablement: true
+
+      - name: رفع الناتج
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: النشر
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: النشر على GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: الرابط
+        run: |
+          echo "### 🌙 نسخة الويب منشورة" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.deployment.outputs.page_url }}" >> "$GITHUB_STEP_SUMMARY"

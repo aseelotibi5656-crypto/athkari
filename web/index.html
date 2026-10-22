@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <!-- يُستبدل تلقائيًا بقيمة ‎--base-href عند البناء (مطلوب للنشر على مسار فرعي). -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="description" content="أذكاري — تطبيق مجاني لمتابعة أذكار الصباح والمساء مع عدّاد الالتزام.">
+
+  <!-- يجعل التطبيق يفتح بلا شريط عنوان عند إضافته لشاشة الآيفون الرئيسية -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="أذكاري">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <meta name="theme-color" content="#F6F4EF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#10161A" media="(prefers-color-scheme: dark)">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>أذكاري</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* خلفية مطابقة لخلفية التطبيق أثناء التحميل، حتى لا تومض شاشة بيضاء */
+    html, body { margin: 0; padding: 0; height: 100%; background: #F6F4EF; }
+    @media (prefers-color-scheme: dark) { html, body { background: #10161A; } }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, "Segoe UI", Tahoma, sans-serif; color: #5C6A70; font-size: 15px;
+    }
+    @media (prefers-color-scheme: dark) { #loading { color: #9BAAB3; } }
+  </style>
+</head>
+<body>
+  <div id="loading">جارٍ التحميل…</div>
+  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('loading');
+      if (el) el.remove();
+    });
+  </script>
+</body>
+</html>
