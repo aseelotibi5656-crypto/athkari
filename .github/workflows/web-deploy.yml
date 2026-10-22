@@ -62,11 +62,11 @@ jobs:
           flutter build web --release --base-href=/athkari/
           echo "✅ الحجم: $(du -sh build/web | cut -f1)"
 
+      # ملاحظة: تفعيل GitHub Pages نفسه لا يمكن أن يتم من هنا — صلاحية
+      # GITHUB_TOKEN لا تسمح بإنشاء موقع Pages. فُعِّل يدويًا مرة واحدة من:
+      # Settings ← Pages ← Build and deployment ← Source = GitHub Actions
       - name: تهيئة Pages
         uses: actions/configure-pages@v5
-        with:
-          # يُفعّل GitHub Pages تلقائيًا في أول تشغيل إن لم يكن مفعّلًا.
-          enablement: true
 
       - name: رفع الناتج
         uses: actions/upload-pages-artifact@v3
