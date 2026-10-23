@@ -69,9 +69,6 @@ class StorageKeys {
 
   /// أفضل سلسلة وصل لها المستخدم (لا تنقص أبدًا).
   static const String bestStreak = 'best_streak';
-
-  /// آخر مزامنة ناجحة مع Firestore (ISO 8601).
-  static const String lastSyncedAt = 'last_synced_at';
 }
 
 /// أرقام تعريف الإشعارات المحلية.

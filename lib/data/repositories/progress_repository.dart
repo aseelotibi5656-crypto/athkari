@@ -6,9 +6,8 @@ import '../models/day_progress_model.dart';
 
 /// حفظ واسترجاع تقدّم المستخدم.
 ///
-/// المصدر الأساسي للحقيقة هو التخزين المحلي (Hive) — التطبيق يعمل بالكامل
-/// بدون إنترنت. المزامنة مع Firestore (إن سجّل المستخدم دخوله) اختيارية
-/// وتُبنى فوق هذه الطبقة، ولا يعتمد عليها أي شيء في الواجهة.
+/// المصدر الوحيد للحقيقة هو التخزين المحلي (Hive) — التطبيق يعمل بالكامل
+/// بدون إنترنت، ولا يرفع أي بيانات إلى أي خادم.
 class ProgressRepository {
   ProgressRepository(this._progressBox, this._settingsBox);
 
@@ -68,27 +67,6 @@ class ProgressRepository {
     return days;
   }
 
-  /// دمج سجلّات قادمة من السحابة مع المحلية.
-  ///
-  /// قاعدة الدمج: لكل يوم، الأحدث (updatedAt) يفوز؛ وإذا كان أحدهما مكتملًا
-  /// فالإكمال لا يُلغى أبدًا — لا نريد أن تُمحى سلسلة المستخدم بسبب جهاز قديم.
-  Future<void> mergeRemoteDays(List<DayProgress> remoteDays) async {
-    for (final DayProgress remote in remoteDays) {
-      final DayProgress local = dayProgress(remote.dateKey);
-      final DateTime localAt =
-          local.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final DateTime remoteAt =
-          remote.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-
-      final DayProgress newer = remoteAt.isAfter(localAt) ? remote : local;
-      final DayProgress merged = newer.copyWith(
-        morningCompleted: local.morningCompleted || remote.morningCompleted,
-        eveningCompleted: local.eveningCompleted || remote.eveningCompleted,
-      );
-      await saveDayProgress(merged);
-    }
-  }
-
   // ==================== الإعدادات ====================
 
   T setting<T>(String key, T fallback) {
@@ -108,14 +86,6 @@ class ProgressRepository {
 
   Future<void> saveBestStreak(int value) =>
       saveSetting(StorageKeys.bestStreak, value);
-
-  DateTime? get lastSyncedAt {
-    final String? raw = setting<String?>(StorageKeys.lastSyncedAt, null);
-    return raw == null ? null : DateTime.tryParse(raw);
-  }
-
-  Future<void> saveLastSyncedAt(DateTime value) =>
-      saveSetting(StorageKeys.lastSyncedAt, value.toIso8601String());
 
   /// حذف كل بيانات التقدّم (يُستخدم من الإعدادات بتأكيد صريح من المستخدم).
   Future<void> clearAllProgress() async {

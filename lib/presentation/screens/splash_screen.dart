@@ -8,8 +8,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/settings_provider.dart';
-import '../../providers/sync_provider.dart';
-import '../../services/firebase_service.dart';
 import 'home_screen.dart';
 
 /// شاشة البداية: شعار بسيط + اسم التطبيق.
@@ -38,11 +36,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     // إعادة جدولة التذكيرات المفعّلة.
     await ref.read(settingsProvider.notifier).rescheduleAll();
-
-    // مزامنة صامتة إن كان المستخدم مسجّلًا دخوله (اختيارية تمامًا).
-    if (FirebaseService.instance.isSignedIn) {
-      unawaited(ref.read(syncProvider.notifier).syncNow());
-    }
 
     // نضمن ظهور الشعار مدة لائقة بدل وميض سريع.
     final int remaining = 1200 - stopwatch.elapsedMilliseconds;

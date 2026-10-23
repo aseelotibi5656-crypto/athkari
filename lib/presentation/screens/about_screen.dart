@@ -105,7 +105,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 const SizedBox(height: 10),
                 const _Fact(
                   icon: Icons.lock_outline_rounded,
-                  text: 'بياناتك تبقى على جهازك، ولا تُرفع إلا إن اخترت المزامنة.',
+                  text: 'بياناتك تبقى على جهازك ولا تُرفع إلى أي خادم إطلاقًا.',
                 ),
               ],
             ),

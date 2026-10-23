@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,12 +8,10 @@ import '../../core/utils/date_utils.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/streak_provider.dart';
-import '../../providers/sync_provider.dart';
-import '../../services/firebase_service.dart';
 import '../../services/notification_service.dart';
 import 'about_screen.dart';
 
-/// شاشة الإعدادات: التذكيرات، القراءة، الحساب والمزامنة، وحول التطبيق.
+/// شاشة الإعدادات: التذكيرات، القراءة، العام، وحول التطبيق.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -118,8 +115,6 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          const _AccountSection(),
           const SizedBox(height: 18),
           _Section(
             title: 'عام',
@@ -230,106 +225,6 @@ class SettingsScreen extends ConsumerWidget {
   static void _snack(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
-    );
-  }
-}
-
-/// قسم الحساب والمزامنة — يظهر فقط إذا كان Firebase مُهيّأً.
-class _AccountSection extends ConsumerWidget {
-  const _AccountSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (!FirebaseService.instance.isAvailable) {
-      return const _Section(
-        title: 'المزامنة',
-        children: <Widget>[
-          ListTile(
-            leading: Icon(Icons.cloud_off_rounded),
-            title: Text('المزامنة غير مُفعّلة'),
-            subtitle: Text(
-              'كل تقدّمك محفوظ على جهازك ويعمل بدون إنترنت. '
-              'المزامنة تحتاج إعداد Firebase.',
-            ),
-            isThreeLine: true,
-          ),
-        ],
-      );
-    }
-
-    final AsyncValue<User?> auth = ref.watch(authStateProvider);
-    final SyncState sync = ref.watch(syncProvider);
-    final User? user = auth.valueOrNull;
-
-    return _Section(
-      title: 'الحساب والمزامنة',
-      subtitle: 'اختياري — لمزامنة تقدّمك بين أجهزتك',
-      children: <Widget>[
-        if (user == null) ...<Widget>[
-          ListTile(
-            leading: const Icon(Icons.g_mobiledata_rounded, size: 30),
-            title: const Text('تسجيل الدخول بحساب Google'),
-            onTap: () async {
-              final String? error =
-                  await ref.read(syncProvider.notifier).signInWithGoogle();
-              if (error != null && context.mounted) {
-                SettingsScreen._snack(context, error);
-              }
-            },
-          ),
-          if (FirebaseService.instance.isAppleSignInAvailable) ...<Widget>[
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.apple_rounded),
-              title: const Text('تسجيل الدخول بحساب Apple'),
-              onTap: () async {
-                final String? error =
-                    await ref.read(syncProvider.notifier).signInWithApple();
-                if (error != null && context.mounted) {
-                  SettingsScreen._snack(context, error);
-                }
-              },
-            ),
-          ],
-        ] else ...<Widget>[
-          ListTile(
-            leading: const CircleAvatar(
-              backgroundColor: AppColors.primary,
-              child: Icon(Icons.person_rounded, color: Colors.white),
-            ),
-            title: Text(user.displayName ?? 'مستخدم مسجَّل'),
-            subtitle: Text(user.email ?? ''),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: sync.isBusy
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.sync_rounded),
-            title: const Text('مزامنة الآن'),
-            subtitle: Text(
-              sync.error ??
-                  (sync.lastSyncedAt == null
-                      ? 'لم تتم أي مزامنة بعد'
-                      : 'آخر مزامنة: '
-                          '${AppDateUtils.formatTime(sync.lastSyncedAt!.hour, sync.lastSyncedAt!.minute)}'),
-            ),
-            onTap: sync.isBusy
-                ? null
-                : () => ref.read(syncProvider.notifier).syncNow(),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded),
-            title: const Text('تسجيل الخروج'),
-            subtitle: const Text('تقدّمك يبقى محفوظًا على هذا الجهاز'),
-            onTap: () => ref.read(syncProvider.notifier).signOut(),
-          ),
-        ],
-      ],
     );
   }
 }

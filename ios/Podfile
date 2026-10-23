@@ -5,7 +5,8 @@
 # الحاجة لإعداد خاص بمكتبة.
 
 # الحد الأدنى الموحّد لكل المكتبات — يطابق IPHONEOS_DEPLOYMENT_TARGET في Runner.xcodeproj.
-# أعلى ما تطلبه أي مكتبة في المشروع هو iOS 13 (Firebase)، و15 يغطي iPhone 6s فأحدث.
+# كل مكتبات المشروع تتطلب أقل من ذلك بكثير؛ 15.0 خيار متحفّظ يغطي
+# iPhone 6s فأحدث ويتفادى تحذيرات Xcode الحديث.
 platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.

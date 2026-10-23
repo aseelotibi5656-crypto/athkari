@@ -2,9 +2,6 @@ plugins {
     id("com.android.application")
     // يجب أن يأتي بعد إضافة Android.
     id("dev.flutter.flutter-gradle-plugin")
-
-    // لتفعيل Firebase: أزل التعليق بعد وضع google-services.json في android/app/
-    // id("com.google.gms.google-services")
 }
 
 android {

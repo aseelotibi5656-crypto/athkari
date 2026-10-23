@@ -20,8 +20,8 @@
   التطبيق مغلقًا، وتُعاد جدولتها تلقائيًا بعد إعادة تشغيل الجهاز.
 - **تقويم شهري** يعرض الأيام المكتملة بنقاط خضراء، ويحتفظ بالسجل كاملًا حتى لو
   انكسرت السلسلة.
-- **مزامنة اختيارية** بين الأجهزة عبر Firebase (Google / Apple Sign-In) — إن لم
-  تُعدّها، يعمل التطبيق محليًا بالكامل بلا أي خلل.
+- **محلي بالكامل** — لا حسابات، ولا مزامنة سحابية، ولا تتبّع. بياناتك لا تغادر
+  جهازك إطلاقًا، ولا يحتوي التطبيق أي حزمة تتصل بخادم خارجي.
 - واجهة **عربية RTL** بالكامل، مع خطّي Almarai (الواجهة) و Amiri (نصوص الأذكار)
   مضمَّنين داخل التطبيق، ودعم الوضع الداكن.
 
@@ -70,7 +70,7 @@ flutter run
 
 ```
 lib/
-  main.dart                       نقطة الدخول: Hive ثم الإشعارات ثم Firebase
+  main.dart                       نقطة الدخول: قفل الاتجاه ثم Hive ثم الإشعارات
   app.dart                        MaterialApp: الثيم، اللغة العربية، RTL
   core/
     constants.dart                الثوابت ومفاتيح التخزين
@@ -95,14 +95,12 @@ lib/
     adhkar_provider.dart          تحميل الأذكار + تقدّم اليوم
     streak_provider.dart          حساب السلسلة والرسائل التحفيزية
     settings_provider.dart        التذكيرات وإعدادات القراءة
-    sync_provider.dart            المزامنة الاختيارية مع السحابة
   presentation/
     screens/                      splash / home / adhkar / settings / about
     widgets/                      dhikr_card / streak_badge / progress_bar
                                   category_card / month_calendar
   services/
     notification_service.dart     التذكيرات المحلية + المنطقة الزمنية
-    firebase_service.dart         Firebase (اختياري بالكامل)
 ```
 
 ---
@@ -135,35 +133,6 @@ lib/
 ```bash
 flutter test
 ```
-
----
-
-## إعداد Firebase (اختياري)
-
-التطبيق يعمل بالكامل بدون Firebase. لتفعيل المزامنة بين الأجهزة:
-
-1. أنشئ مشروعًا في [Firebase Console](https://console.firebase.google.com) وفعّل
-   **Authentication** (Google / Apple) و **Cloud Firestore**.
-2. **Android:** ضع `google-services.json` في `android/app/`، ثم أزل التعليق عن
-   سطر `com.google.gms.google-services` في:
-   - `android/settings.gradle.kts`
-   - `android/app/build.gradle.kts`
-3. **iOS:** ضع `GoogleService-Info.plist` داخل `ios/Runner/` (الملف مستثنى من Git؛ على GitHub Actions ضعه كسرّ base64 وفكّه في خطوة قبل البناء).
-4. قواعد Firestore المقترحة (كل مستخدم يقرأ ويكتب بياناته فقط):
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-إن لم تُضَف هذه الملفات، يفشل `Firebase.initializeApp()` بهدوء، وتُخفي شاشة
-الإعدادات خيارات تسجيل الدخول تلقائيًا بدل أن ينهار التطبيق.
 
 ---
 
